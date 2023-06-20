@@ -1,3 +1,4 @@
+import time
 from datetime import datetime, timedelta
 
 from ibapi.client import EClient
@@ -10,14 +11,14 @@ class IBClient(EWrapper, EClient):
         EClient.__init__(self, self)
         self.historicalDataReceived = False
     
-    def historicalTicksLast(self, reqId, ticks, done):
-        for tick in ticks:
-            print(f"Tick data: {tick.time} - {tick.price}")
-        
-        if done:
-            self.historicalDataReceived = True
-            print("Historical data request completed.")
-            self.disconnect()
+    def historicalData(self, reqId, bar):
+        print(f"Received historical data: {bar.date} - {bar.open} - {bar.high} - {bar.low} - {bar.close}")
+    
+    def historicalDataEnd(self, reqId, start, end):
+        super().historicalDataEnd(reqId, start, end)
+        self.historicalDataReceived = True
+        print("Historical data request completed.")
+        self.disconnect()
 
 
 def main():
@@ -34,7 +35,7 @@ def main():
     
     # Define the contract details for the stock
     contract = Contract()
-    contract.symbol = "MSFT"  # Replace with the desired stock symbol
+    contract.symbol = "AAPL"  # Replace with the desired stock symbol
     contract.secType = "STK"
     contract.exchange = "SMART"
     contract.currency = "USD"
@@ -43,24 +44,30 @@ def main():
     end_date = datetime.now().strftime("%Y%m%d %H:%M:%S")
     start_date = (datetime.now() - timedelta(days=30)).strftime("%Y%m%d %H:%M:%S")
     
-    # Request historical tick data for the stock
-    client.reqHistoricalTicks(
+    # Request historical data for the stock
+    client.reqHistoricalData(
         reqId=1,
         contract=contract,
-        startDateTime=start_date,
         endDateTime=end_date,
-        numberOfTicks=0,
+        durationStr="30 D",  # Request data for the last 30 days
+        barSizeSetting="1 day",  # Request daily data
         whatToShow="TRADES",
-        useRth=0,
-        ignoreSize=True,
-        miscOptions=[]
+        useRTH=0,
+        formatDate=1,
+        keepUpToDate=False,
+        chartOptions=[]
     )
     
     print("Historical data request sent.")
     
-    # Wait for the historical data to be received
+    # Wait for the historical data to be received with a timeout mechanism
+    timeout = 10  # Timeout duration in seconds
+    start_time = time.time()
     while not client.historicalDataReceived:
-        pass
+        if time.time() - start_time > timeout:
+            print("Timeout reached. Historical data not received.")
+            break
+        time.sleep(0.1)
     
     print("Historical data received.")
     
